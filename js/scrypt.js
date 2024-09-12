@@ -1,49 +1,39 @@
 let favorites = JSON.parse(localStorage.getItem('favorites')) || [];
-
-function throttle(func, limit) {
-    let lastFunc;
-    let lastRan;
-
+let abortController;
+function debounce(func, delay) {
+    let timeoutId;
     return function (...args) {
         const context = this;
-
-        if (!lastRan) {
+        clearTimeout(timeoutId);
+        timeoutId = setTimeout(() => {
             func.apply(context, args);
-            lastRan = Date.now();
-        } else {
-            clearTimeout(lastFunc);
-            lastFunc = setTimeout(function () {
-                if ((Date.now() - lastRan) >= limit) {
-                    func.apply(context, args);
-                    lastRan = Date.now();
-                }
-            }, limit - (Date.now() - lastRan));
-        }
+        }, delay);
     };
 }
 
 function displayResults(results) {
     const resultsContainer = document.getElementById('results');
-    resultsContainer.innerHTML = '';
-    resultsContainer.style.display = results.length ? 'block' : 'none';
-
+    const resultsList = document.createElement('div');
+    resultsList.innerHTML = '';
+    
     results.forEach(repo => {
         const item = document.createElement('div');
         item.className = 'result-item';
         item.textContent = repo.name;
         item.onclick = () => addToFavorites(repo);
-        resultsContainer.appendChild(item);
+        resultsList.appendChild(item);
     });
+    resultsContainer.innerHTML = '';
+    resultsContainer.appendChild(resultsList);
 }
 
 function addToFavorites(repo) {
-    if (!favorites.find(fav => fav.id === repo.id)) {
+    if (!favorites.some(fav => fav.id === repo.id)) {
         favorites.push(repo);
         localStorage.setItem('favorites', JSON.stringify(favorites));
         renderFavorites();
     }
     closeResults();
-
     document.getElementById('repo-search').value = '';
 }
 
@@ -70,11 +60,32 @@ function renderFavorites() {
 }
 
 async function searchRepositories(query) {
-    document.getElementById('loader').style.display = 'block';
-    const response = await fetch(`https://api.github.com/search/repositories?q=${query}&sort`);
-    const data = await response.json();
-    displayResults(data.items.slice(0, 5));
-    document.getElementById('loader').style.display = 'none';
+    const loader = document.getElementById('loader');
+    const resultsContainer = document.getElementById('results');
+    loader.style.display = 'block';
+    resultsContainer.style.display = 'none';
+    if (abortController) {
+        abortController.abort();
+    }
+    abortController = new AbortController();
+    const { signal } = abortController;
+
+    try {
+        const response = await fetch(`https://api.github.com/search/repositories?q=${query}&sort`, { signal });
+        if (!response.ok) throw new Error(`Ошибка ${response.status}`);
+        
+        const data = await response.json();
+        displayResults(data.items ? data.items.slice(0, 5) : []);
+    } catch (error) {
+        if (error.name === 'AbortError') {
+            console.log('Запрос был прерван');
+        } else {
+            console.error("Ошибка при выполнении запроса:", error);
+        }
+    } finally {
+        loader.style.display = 'none';
+        resultsContainer.style.display = 'block'; 
+    }
 }
 
 function closeResults() {
@@ -82,14 +93,14 @@ function closeResults() {
     resultsContainer.style.display = 'none';
 }
 
-const throttledSearch = throttle(searchRepositories, 300); // 0.3sec
+const debouncedSearch = debounce(searchRepositories, 500); // 0.5 секунды
 
 document.getElementById('repo-search').addEventListener('input', (event) => {
     const query = event.target.value;
-    throttledSearch(query);
+    if (query.length > 1) debouncedSearch(query); 
 });
 
-document.addEventListener('click', (event) => {
+document.addEventListener('click', function(event) {
     if (!document.getElementById('search-container').contains(event.target)) {
         closeResults();
     }

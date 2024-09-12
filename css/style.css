@@ -9,7 +9,7 @@ body {
   max-height: 200px;
   overflow-y: auto;
   display: none;
-  position: absolute;
+  position: relative;
   background-color: white;
   width: 300px;
   z-index: 1000;
@@ -33,15 +33,13 @@ body {
   margin-bottom: 5px;
 }
 .loader {
-  border: 8px solid #f3f3f3; /* Light grey */
-  border-top: 8px solid #3498db; /* Blue */
+  border: 8px solid #f3f3f3; 
+  border-top: 8px solid #3498db; 
   border-radius: 50%;
   width: 40px;
   height: 40px;
   animation: spin 1s linear infinite;
-  position: absolute;
-  top: 10px;
-  right: 10px;
+  position: relative;   
 }
 
 @keyframes spin {
